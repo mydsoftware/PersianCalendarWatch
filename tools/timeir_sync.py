@@ -1,26 +1,28 @@
 #!/usr/bin/env python3
 """دریافت داده تقویم و مناسبت‌ها از Time.ir برای بسته‌بندی آفلاین در ساعت.
 
-این ابزار روی کامپیوتر/CI اجرا می‌شود؛ خود Galaxy Watch مستقیماً Time.ir را scrape نمی‌کند.
+خود Galaxy Watch مستقیماً Time.ir را scrape نمی‌کند؛ این ابزار روی PC/CI اجرا
+می‌شود و داده تأییدشده را برای استفاده آفلاین داخل برنامه تولید می‌کند.
 """
 import json
 import re
+from datetime import datetime, timezone
+from html import unescape
 from pathlib import Path
 from urllib.request import Request, urlopen
-from html import unescape
 
 URL = "https://www.time.ir/event-year"
 OUT = Path(__file__).resolve().parents[1] / "data" / "timeir-events.json"
 MONTHS = [
-    "فروردین", "اردیبهشت", "خرداد", "تیر", "اَمرداد", "شهریور",
+    "فروردین", "اردیبهشت", "خرداد", "تیر", "اَمرداد", "مرداد", "شهریور",
     "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"
 ]
 
 
 def strip_html(value: str) -> str:
-    value = re.sub(r"<[^>]+>", " ", value)
+    value = re.sub(r"<[^>]+>", "\n", value)
     value = unescape(value)
-    return re.sub(r"\s+", " ", value).strip()
+    return re.sub(r"[ \t\r\f\v]+", " ", value)
 
 
 def fetch() -> str:
@@ -30,18 +32,18 @@ def fetch() -> str:
 
 
 def parse(html: str):
-    # متن صفحه سالانه Time.ir را به شکل پایدار و ساده استخراج می‌کنیم.
     text = strip_html(html)
     events = []
     current_month = None
 
-    for line in re.split(r"\n+", text):
-        line = line.strip()
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
         for month in MONTHS:
             if month in line and len(line) < 40:
                 current_month = month
                 break
-
         m = re.match(r"^(\d{1,2})\s+(.+)$", line)
         if current_month and m:
             day = int(m.group(1))
@@ -51,10 +53,9 @@ def parse(html: str):
                     "month": current_month,
                     "day": day,
                     "title": title,
-                    "source": "Time.ir"
+                    "source": "Time.ir",
                 })
 
-    # حذف موارد تکراری ناشی از ساختار HTML صفحه
     unique = {(x["month"], x["day"], x["title"]): x for x in events}
     return list(unique.values())
 
@@ -62,7 +63,8 @@ def parse(html: str):
 def main():
     html = fetch()
     data = {
-        "source": "https://www.time.ir/event-year",
+        "source": URL,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
         "generated_by": "tools/timeir_sync.py",
         "events": parse(html),
     }
