@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "source": "Time.ir",
+  "calendar": "jalali",
+  "events": [
+    {
+      "jalali": "1405/01/01",
+      "title": "نوروز",
+      "holiday": true
+    }
+  ]
+}
